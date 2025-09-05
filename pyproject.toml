@@ -1,0 +1,15 @@
+[project]
+name = "road-distances"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "geojson>=3.2.0",
+    "geopandas>=1.1.1",
+    "jq>=1.10.0",
+    "osmium>=4.0.2",
+    "pandas>=2.3.2",
+    "pyproj>=3.7.2",
+    "tqdm>=4.67.1",
+]
