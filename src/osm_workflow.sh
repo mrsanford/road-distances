@@ -22,15 +22,32 @@ osmium tags-filter "$PBF_PATH" w/highway \
 ## --- Export to GeoJSON ---
 osmium export "${DATA_DIR}/${STATE_SLUG}_highways.pbf" \
   -o "${DATA_DIR}/${STATE_SLUG}_highways.geojson" --overwrite
+  ## Alternate for only lines (no points or polygons)
+  # osmium export "${DATA_DIR}/${STATE_SLUG}_highways.pbf" \
+  # --geometry-types lines \
+  # -o "${DATA_DIR}/${STATE_SLUG}_highways.geojson" --overwrite
+## -- Building distance raster --
+python3 src/make_raster.py \
+  --state "$STATE" \
+  --data-dir "$DATA_DIR" \
+  --pixel-meters 15 ## could change later, might be related to zoom_level
+## --- Logging location ---
 echo "Files successfully written to:"
 echo " - $PBF_PATH"
 echo " - ${DATA_DIR}/${STATE_SLUG}_highways.pbf"
 echo " - ${DATA_DIR}/${STATE_SLUG}_highways.geojson"
 
 ## Running in the terminal
-# chmod +x osm_download.sh ## only run once(?)
-# ./osm_download.sh
+### chmod +x src/osm_workflow.sh
+### ./src/osm_workflow.sh
 
-## Would like to get the names of different highway types in OSM
-## Instal jq
+# figure out the right size for the raster
+# doing the whole world, might have to change the workflow
+# using distance-raster library
+# might need to make some tag changes
+# noexit -- maybe not needed
+# opening geojson with fiona with breakpoint -- if it does take a longtime
+# make the breakpoint after the fiona open run line
 
+
+# would it be bad to only use line data where highway=* and leave out points and polygons
