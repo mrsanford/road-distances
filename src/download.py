@@ -1,44 +1,36 @@
 import requests
 import argparse
 from tqdm import tqdm
-from pathlib import Path
 from utils.utils_loggers import setup_logger
-from utils.helpers import STATE
+from utils.helpers import build_url, make_local_paths
 
-# instantiating logging for file download.log
+# setting up custom logging
 logger = setup_logger(__name__, log_file="downloading")
 
 
-def state_normalized(state: str = STATE) -> str:
-    return state.lower().replace(" ", "-")
-
-
-def download_osm_file(state: str = STATE) -> None:
-    norm_state = state_normalized(state)
-    html_url = f"https://download.geofabrik.de/north-america/us/{norm_state}.html"
+def download_osm_file(region: str, country: str = None, province: str = None) -> None:
+    """
+    Downloads an .osm.pbf file from Geofabrik for a given region/country/province.
+    """
+    url = build_url(region, country, province)  # PBF link
+    html_url = build_url(region, country, province, html=True)  # HTML index
+    input_pbf, _, _ = make_local_paths(region, country, province)
 
     try:
-        logger.info(f"Fetching HTML page for {state} from {html_url}")
+        logger.info(f"Fetching HTML page {html_url}")
         page_response = requests.get(html_url)
         page_response.raise_for_status()
 
-        # check if the file link exists in the HTML page
-        file_ref = f"{norm_state}-latest.osm.pbf"
+        file_ref = url.split("/")[-1]
         if file_ref not in page_response.text:
-            logger.error(f"Download link for {state} not found in the HTML page.")
+            logger.error(f"Download link not found in {html_url}")
             return
 
-        file_url = f"https://download.geofabrik.de/north-america/us/{norm_state}-latest.osm.pbf"
-        logger.info(f"Found .osm.pbf file at {file_url}")
-
-        filename = Path(f"./data/{norm_state}-latest.osm.pbf")
-        filename.parent.mkdir(parents=True, exist_ok=True)
-
-        if filename.exists():
-            logger.info(f"{filename.name} already exists. Skipping download.")
+        if input_pbf.exists():
+            logger.info(f"{input_pbf.name} already exists. Skipping download.")
             return
 
-        file_response = requests.get(file_url, stream=True)
+        file_response = requests.get(url, stream=True)
         file_response.raise_for_status()
 
         total_size = int(file_response.headers.get("content-length") or 0)
@@ -46,10 +38,14 @@ def download_osm_file(state: str = STATE) -> None:
             logger.warning(
                 "No content length header available. Progress bar may be incorrect."
             )
+
         with (
-            open(filename, "wb") as file,
+            open(input_pbf, "wb") as file,
             tqdm(
-                total=total_size, unit="B", unit_scale=True, desc=f"Downloading {state}"
+                total=total_size,
+                unit="B",
+                unit_scale=True,
+                desc=f"Downloading {input_pbf.stem}",
             ) as bar,
         ):
             for chunk in file_response.iter_content(chunk_size=1024):
@@ -57,26 +53,24 @@ def download_osm_file(state: str = STATE) -> None:
                     file.write(chunk)
                     bar.update(len(chunk))
 
-        logger.info(f"Download completed: {filename}")
+        logger.info(f"Download completed: {input_pbf}")
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error during downloading: {e}")
 
-    return
-
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Downloads state's .osm.pbf from Geofabrik."
+    parser = argparse.ArgumentParser(description="Downloads OSM PBF from Geofabrik.")
+    parser.add_argument(
+        "--region", "-r", required=True, help="Region (e.g., 'Africa', 'North America')"
     )
     parser.add_argument(
-        "--state",
-        "-s",
-        default=STATE,
-        help="State/territory name (e.g., 'Puerto Rico', 'Virginia').",
+        "--country", "-c", help="Optional country (e.g., 'Nigeria', 'Canada')"
     )
+    parser.add_argument("--province", "-p", help="Optional province (e.g., 'Alberta')")
     args = parser.parse_args()
-    download_osm_file(state=args.state)
+
+    download_osm_file(args.region, args.country, args.province)
 
 
 if __name__ == "__main__":

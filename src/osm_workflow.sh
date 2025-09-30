@@ -2,44 +2,86 @@
 set -euo pipefail
 
 # --- Config ---
-DEFAULT_STATE="Puerto Rico"
+DEFAULT_REGION="North America"
+DEFAULT_COUNTRY="Canada"
+DEFAULT_PROVINCE=""  # optional (empty means whole country)
 PY_FILE="src/download.py"
 DATA_DIR="data"
 FEATURE="highways"
 # ---------------
 
-STATE="${1:-$DEFAULT_STATE}"
-STATE_SLUG=$(echo "$STATE" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
-PBF_PATH="${DATA_DIR}/${STATE_SLUG}-latest.osm.pbf"
+REGION="${1:-$DEFAULT_REGION}"
+COUNTRY="${2:-$DEFAULT_COUNTRY}"
+PROVINCE="${3:-$DEFAULT_PROVINCE}"
 
-# --- Download OSM data for target US state/territory (PR is default) ---
-python3 "$PY_FILE" --state "$STATE"
-# --- Run Osmium commands for highway extraction and exporting to GeoJSON ---
+# --- Normalize with Python helper (consistent with helpers.py) ---
+REGION_SLUG=$(PYTHONPATH=src python3 - <<EOF
+from utils.helpers import normalize_area
+print(normalize_area("$REGION"))
+EOF
+)
+
+COUNTRY_SLUG=$(PYTHONPATH=src python3 - <<EOF
+from utils.helpers import normalize_area
+print(normalize_area("$COUNTRY"))
+EOF
+)
+
+if [[ -n "$PROVINCE" ]]; then
+  PROVINCE_SLUG=$(PYTHONPATH=src python3 - <<EOF
+from utils.helpers import normalize_area
+print(normalize_area("$PROVINCE"))
+EOF
+)
+  SLUG="$PROVINCE_SLUG"
+  PBF_PATH="${DATA_DIR}/${REGION_SLUG}/${COUNTRY_SLUG}/${PROVINCE_SLUG}-latest.osm.pbf"
+
+else
+  SLUG="$COUNTRY_SLUG"
+  PBF_PATH="${DATA_DIR}/${REGION_SLUG}/${COUNTRY_SLUG}-latest.osm.pbf"
+fi
+
+# --- Download OSM data ---
+PYTHONPATH=src python3 "$PY_FILE" \
+  --region "$REGION" \
+  --country "$COUNTRY" \
+  ${PROVINCE:+--province "$PROVINCE"}
+
+# --- Run Osmium commands ---
 osmium fileinfo -e "$PBF_PATH"
+
 ## --- Extract highways ---
-osmium tags-filter "$PBF_PATH" w/highway \
-  -o "${DATA_DIR}/${STATE_SLUG}_highways.pbf" --overwrite
+osmium tags-filter "$PBF_PATH" \
+  w/highway=motorway,trunk,primary,secondary,tertiary \
+  -o "${PBF_PATH%.osm.pbf}_highways_drivable.pbf" --overwrite
+
 ## --- Export to GeoJSON ---
-osmium export "${DATA_DIR}/${STATE_SLUG}_highways.pbf" \
-  -o "${DATA_DIR}/${STATE_SLUG}_highways.geojson" --overwrite
-  ## Alternate for only lines (no points or polygons)
-  # osmium export "${DATA_DIR}/${STATE_SLUG}_highways.pbf" \
-  # --geometry-types lines \
-  # -o "${DATA_DIR}/${STATE_SLUG}_highways.geojson" --overwrite
-## -- Building distance raster --
-python3 src/make_raster.py \
-  --state "$STATE" \
+osmium export "${PBF_PATH%.osm.pbf}_highways_drivable.pbf" \
+  -o "${PBF_PATH%.osm.pbf}_highways.geojson" --overwrite
+# Alternate if you want strictly line geometries:
+# osmium export "${PBF_PATH%.osm.pbf}_highways_drivable.pbf" \
+#   --geometry-types lines \
+#   -o "${PBF_PATH%.osm.pbf}_highways.geojson" --overwrite
+
+## --- Build raster ---
+PYTHONPATH=src python3 src/make_raster.py \
+  --region "$REGION" \
+  --country "$COUNTRY" \
+  ${PROVINCE:+--province "$PROVINCE"} \
   --data-dir "$DATA_DIR" \
-  --pixel-meters 15 ## could change later, might be related to zoom_level
-## --- Logging location ---
+  --pixel-degrees 0.0005
+
+## --- Logging ---
 echo "Files successfully written to:"
 echo " - $PBF_PATH"
-echo " - ${DATA_DIR}/${STATE_SLUG}_highways.pbf"
-echo " - ${DATA_DIR}/${STATE_SLUG}_highways.geojson"
+echo " - ${PBF_PATH%.osm.pbf}_highways_drivable.pbf"
+echo " - ${PBF_PATH%.osm.pbf}_highways.geojson"
 
-## Running in the terminal
+## Usage examples:
 ### chmod +x src/osm_workflow.sh
-### ./src/osm_workflow.sh
+### ./src/osm_workflow.sh "Africa" "Nigeria"
+### ./src/osm_workflow.sh "South America" "Brazil"
+
 
 # figure out the right size for the raster
 # doing the whole world, might have to change the workflow
@@ -48,6 +90,14 @@ echo " - ${DATA_DIR}/${STATE_SLUG}_highways.geojson"
 # noexit -- maybe not needed
 # opening geojson with fiona with breakpoint -- if it does take a longtime
 # make the breakpoint after the fiona open run line
-
-
 # would it be bad to only use line data where highway=* and leave out points and polygons
+
+# work on visuals
+# discerning between roads
+# increase comfortability in adjusting
+# motorway, trunk, primary, secondary, tertiary
+
+# running this on HPC
+# 5 km might be ok but aim for 1 km
+# aiming for km^2 cells
+

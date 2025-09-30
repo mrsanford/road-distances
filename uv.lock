@@ -631,6 +631,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "coverage" },
     { name = "distancerasters" },
+    { name = "fiona" },
     { name = "geojson" },
     { name = "geopandas" },
     { name = "jq" },
@@ -645,6 +646,7 @@ dependencies = [
 requires-dist = [
     { name = "coverage", specifier = ">=7.10.6" },
     { name = "distancerasters", specifier = ">=0.3.3" },
+    { name = "fiona", specifier = ">=1.10.1" },
     { name = "geojson", specifier = ">=3.2.0" },
     { name = "geopandas", specifier = ">=1.1.1" },
     { name = "jq", specifier = ">=1.10.0" },
