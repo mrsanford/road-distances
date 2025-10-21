@@ -49,22 +49,34 @@ def build_url(
 
 def make_local_paths(region: str, country: str = None, province: str = None):
     """
-    Generate local paths for raw PBF, filtered PBF, and GeoJSON.
-    Ensures directories exist.
+    Constructs consistent local paths for OSM .pbf and derived files.
+    Automatically creates directories if they don't exist.
+
+    Returns:
+        (input_pbf, output_pbf, output_geojson)
     """
-    # build subpath components (drop None)
-    subpath = [normalize_area(p) for p in [region, country, province] if p]
-    name = subpath[-1]  # last element is the filename stem
-
-    # base directory: ./data/<region>/<country>/<province>
-    basepath = Path("./data").joinpath(*subpath)
-    basepath.mkdir(parents=True, exist_ok=True)
-
-    input_pbf = basepath / f"{name}-latest.osm.pbf"
-    filtered_pbf = basepath / f"{name}-roads.osm.pbf"
-    geojson_file = basepath / f"{name}-roads.geojson"
-
-    return input_pbf, filtered_pbf, geojson_file
+    # normalizing filenames
+    region_slug = normalize_area(region)
+    country_slug = normalize_area(country) if country else None
+    province_slug = normalize_area(province) if province else None
+    base_dir = Path("data") / region_slug
+    if country_slug:
+        base_dir = base_dir / country_slug
+    if province_slug:
+        base_dir = base_dir / province_slug
+    # checking base directory existence
+    base_dir.mkdir(parents=True, exist_ok=True)
+    # building filenames
+    if province_slug:
+        name_part = province_slug
+    elif country_slug:
+        name_part = country_slug
+    else:
+        name_part = region_slug
+    input_pbf = base_dir / f"{name_part}-latest.osm.pbf"
+    output_pbf = base_dir / f"{name_part}_highways_drivable.pbf"
+    output_geojson = base_dir / f"{name_part}_highways.geojson"
+    return input_pbf, output_pbf, output_geojson
 
 
 # ----------------------------------------------------------------------
@@ -101,11 +113,10 @@ if __name__ == "__main__":
         input_pbf, filtered_pbf, geojson_file = paths
         print(f"Region={region}, Country={country}, Province={province}")
         print(f"  URL: {url}")
-        print(f"  Local paths:")
+        print(" Local paths:")
         print(f"    input_pbf: {input_pbf}")
         print(f"    filtered_pbf: {filtered_pbf}")
         print(f"    geojson_file: {geojson_file}")
-        print()
 
 
 # ----------------------------------------------------------------------

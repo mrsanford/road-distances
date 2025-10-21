@@ -14,19 +14,17 @@ REGION="${1:-$DEFAULT_REGION}"
 COUNTRY="${2:-$DEFAULT_COUNTRY}"
 PROVINCE="${3:-$DEFAULT_PROVINCE}"
 
-# --- Normalize with Python helper (consistent with helpers.py) ---
+# --- Normalizing path names (helpers.py) ---
 REGION_SLUG=$(PYTHONPATH=src python3 - <<EOF
 from utils.helpers import normalize_area
 print(normalize_area("$REGION"))
 EOF
 )
-
 COUNTRY_SLUG=$(PYTHONPATH=src python3 - <<EOF
 from utils.helpers import normalize_area
 print(normalize_area("$COUNTRY"))
 EOF
 )
-
 if [[ -n "$PROVINCE" ]]; then
   PROVINCE_SLUG=$(PYTHONPATH=src python3 - <<EOF
 from utils.helpers import normalize_area
@@ -34,28 +32,26 @@ print(normalize_area("$PROVINCE"))
 EOF
 )
   SLUG="$PROVINCE_SLUG"
-  PBF_PATH="${DATA_DIR}/${REGION_SLUG}/${COUNTRY_SLUG}/${PROVINCE_SLUG}-latest.osm.pbf"
-
+  PBF_PATH="${DATA_DIR}/${REGION_SLUG}/${COUNTRY_SLUG}/${PROVINCE_SLUG}/${PROVINCE_SLUG}-latest.osm.pbf"
 else
   SLUG="$COUNTRY_SLUG"
-  PBF_PATH="${DATA_DIR}/${REGION_SLUG}/${COUNTRY_SLUG}-latest.osm.pbf"
+  PBF_PATH="${DATA_DIR}/${REGION_SLUG}/${COUNTRY_SLUG}/${COUNTRY_SLUG}-latest.osm.pbf"
 fi
+mkdir -p "$(dirname "$PBF_PATH")"
 
-# --- Download OSM data ---
+# downloading osm data
 PYTHONPATH=src python3 "$PY_FILE" \
   --region "$REGION" \
   --country "$COUNTRY" \
   ${PROVINCE:+--province "$PROVINCE"}
 
-# --- Run Osmium commands ---
+# running osmium commands
 osmium fileinfo -e "$PBF_PATH"
-
-## --- Extract highways ---
+## extracting target highway types
 osmium tags-filter "$PBF_PATH" \
   w/highway=motorway,trunk,primary,secondary,tertiary \
   -o "${PBF_PATH%.osm.pbf}_highways_drivable.pbf" --overwrite
-
-## --- Export to GeoJSON ---
+## exporting to geojson
 osmium export "${PBF_PATH%.osm.pbf}_highways_drivable.pbf" \
   -o "${PBF_PATH%.osm.pbf}_highways.geojson" --overwrite
 # Alternate if you want strictly line geometries:
@@ -63,15 +59,14 @@ osmium export "${PBF_PATH%.osm.pbf}_highways_drivable.pbf" \
 #   --geometry-types lines \
 #   -o "${PBF_PATH%.osm.pbf}_highways.geojson" --overwrite
 
-## --- Build raster ---
+## building the raster
 PYTHONPATH=src python3 src/make_raster.py \
   --region "$REGION" \
   --country "$COUNTRY" \
   ${PROVINCE:+--province "$PROVINCE"} \
   --data-dir "$DATA_DIR" \
   --pixel-degrees 0.0005
-
-## --- Logging ---
+## adding logging
 echo "Files successfully written to:"
 echo " - $PBF_PATH"
 echo " - ${PBF_PATH%.osm.pbf}_highways_drivable.pbf"
@@ -81,7 +76,6 @@ echo " - ${PBF_PATH%.osm.pbf}_highways.geojson"
 ### chmod +x src/osm_workflow.sh
 ### ./src/osm_workflow.sh "Africa" "Nigeria"
 ### ./src/osm_workflow.sh "South America" "Brazil"
-
 
 # figure out the right size for the raster
 # doing the whole world, might have to change the workflow
@@ -100,4 +94,3 @@ echo " - ${PBF_PATH%.osm.pbf}_highways.geojson"
 # running this on HPC
 # 5 km might be ok but aim for 1 km
 # aiming for km^2 cells
-

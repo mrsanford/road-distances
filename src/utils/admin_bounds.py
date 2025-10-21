@@ -185,3 +185,6 @@ PROVINCES = {
 # europe -> guernsey and jersey -> guernsey-jersey
 # europe -> ireland and northern ireland -> ireland-and-northern-ireland
 # north america -> united states -> us
+
+
+# hardcoding list of countries later
