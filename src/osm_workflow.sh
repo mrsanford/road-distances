@@ -60,7 +60,7 @@ osmium export "${PBF_PATH%.osm.pbf}_highways_drivable.pbf" \
 #   -o "${PBF_PATH%.osm.pbf}_highways.geojson" --overwrite
 
 ## building the raster
-PYTHONPATH=src python3 src/make_raster.py \
+PYTHONPATH=src python3 src/rasterize.py \
   --region "$REGION" \
   --country "$COUNTRY" \
   ${PROVINCE:+--province "$PROVINCE"} \
